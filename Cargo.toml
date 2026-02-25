@@ -10,7 +10,11 @@ cipher = "0.5.0"
 ecb = "0.1.2"
 hex = "0.4.3"
 md5 = "0.8.0"
+mac_address = "1.1.8"
 
+[lib]
+name = "netease_lib"
+crate-type = ["staticlib", "cdylib"]
 
 [profile.release]
 # 启用 LTO ，减小体积并提升性能
