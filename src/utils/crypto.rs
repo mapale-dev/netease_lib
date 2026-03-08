@@ -1,9 +1,11 @@
-use aes::Aes128;
 use aes::cipher::block_padding::Pkcs7;
-use ecb::{Decryptor, Encryptor};
+use aes::Aes128;
 use ecb::cipher::{BlockDecryptMut, BlockEncryptMut, KeyInit};
+use ecb::{Decryptor, Encryptor};
 
+#[warn(dead_code)]
 type Aes128EcbDec = Decryptor<Aes128>;
+#[warn(dead_code)]
 type Aes128EcbEnc = Encryptor<Aes128>;
 
 fn aes_ecb_decrypt(text: &str, key: &str) -> anyhow::Result<String> {
@@ -39,7 +41,7 @@ fn netease_res_decrypt(text: &str) -> anyhow::Result<String> {
 fn netease_req_encrypt(url: &str, text: &str) -> anyhow::Result<String> {
     let message = format!("nobody{}use{}md5forencrypt", url, text);
     let digest = md5::compute(message);
-    let data = format!("{}-36cd479b6b5-{}-36cd479b6b5-{:?}",url,text,digest);
+    let data = format!("{}-36cd479b6b5-{}-36cd479b6b5-{:?}", url, text, digest);
 
     let data = hex::encode(data);
 
@@ -52,6 +54,4 @@ fn test_netease_res_decrypt() {
 }
 
 #[test]
-fn test_netease_req_encrypt() {
-
-}
+fn test_netease_req_encrypt() {}
