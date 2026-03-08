@@ -8,7 +8,7 @@ type Aes128EcbDec = Decryptor<Aes128>;
 #[warn(dead_code)]
 type Aes128EcbEnc = Encryptor<Aes128>;
 
-fn aes_ecb_decrypt(text: &str, key: &str) -> anyhow::Result<String> {
+pub fn aes_ecb_decrypt(text: &str, key: &str) -> anyhow::Result<String> {
     if key.len() != 16 {
         anyhow::bail!("Key must be 16 bytes for AES-128");
     }
@@ -19,7 +19,7 @@ fn aes_ecb_decrypt(text: &str, key: &str) -> anyhow::Result<String> {
     Ok(String::from_utf8(decrypted.to_vec())?)
 }
 
-fn aes_ecb_encrypt(text: &str, key: &str) -> anyhow::Result<String> {
+pub fn aes_ecb_encrypt(text: &str, key: &str) -> anyhow::Result<String> {
     if key.len() != 16 {
         anyhow::bail!("Key must be 16 bytes for AES-128");
     }
@@ -34,14 +34,14 @@ fn aes_ecb_encrypt(text: &str, key: &str) -> anyhow::Result<String> {
     Ok(hex::encode(encrypted))
 }
 
-fn netease_res_decrypt(text: &str) -> anyhow::Result<String> {
+pub fn netease_res_decrypt(text: &str) -> anyhow::Result<String> {
     aes_ecb_decrypt(text, "e82ckenh8dichen8")
 }
 
-fn netease_req_encrypt(url: &str, text: &str) -> anyhow::Result<String> {
+pub fn netease_req_encrypt(url: &str, text: &str) -> anyhow::Result<String> {
     let message = format!("nobody{}use{}md5forencrypt", url, text);
     let digest = md5::compute(message);
-    let data = format!("{}-36cd479b6b5-{}-36cd479b6b5-{:?}", url, text, digest);
+    let data = format!("{}-36cd479b6b5-{}-36cd479b6b5-{digest:x}", url, text);
 
     let data = hex::encode(data);
 

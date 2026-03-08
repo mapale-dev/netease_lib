@@ -1,4 +1,4 @@
-fn get_local_mac() -> anyhow::Result<String> {
+pub fn get_local_mac() -> anyhow::Result<String> {
     let mac = mac_address::get_mac_address()?;
     match mac {
         Some(mac) => Ok(mac.to_string()),
