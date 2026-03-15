@@ -3,7 +3,10 @@ use reqwest::Client;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
-use crate::utils::{cline_sign::get_local_mac, crypto::netease_req_encrypt};
+use crate::utils::{
+    cline_sign::get_local_mac,
+    crypto::{netease_req_encrypt, netease_res_decrypt, netease_res_decrypt_bytes},
+};
 
 /// 默认网易云接口根地址。
 pub const DEFAULT_BASE_URL: &str = "https://interface.music.163.com";
@@ -61,7 +64,7 @@ impl NeteaseApiClient {
         let params = netease_req_encrypt(api_path, &payload_text).context("failed to encrypt payload")?;
         let endpoint = format!("{}{}", self.base_url, to_eapi_path(api_path));
 
-        let response_text = self
+        let response_bytes = self
             .client
             .post(endpoint)
             .header("referer", "https://music.163.com")
@@ -74,11 +77,11 @@ impl NeteaseApiClient {
             .context("request failed")?
             .error_for_status()
             .context("request returned error status")?
-            .text()
+            .bytes()
             .await
             .context("failed to read response body")?;
 
-        serde_json::from_str(&response_text).context("failed to deserialize response")
+        parse_response::<R>(&response_bytes)
     }
 
     fn finalize_payload(&self, payload: Value) -> Value {
@@ -140,6 +143,77 @@ fn build_client_sign(mac: &str) -> String {
 
 fn detect_os_version() -> String {
     format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
+}
+
+fn parse_response<R>(bytes: &[u8]) -> Result<R>
+where
+    R: DeserializeOwned,
+{
+    if let Ok(text) = std::str::from_utf8(bytes) {
+        if let Ok(value) = serde_json::from_str(text) {
+            return Ok(value);
+        }
+
+        let trimmed = text.trim();
+        if looks_like_hex_ciphertext(trimmed) {
+            let decrypted = netease_res_decrypt(trimmed).context("failed to decrypt hex response")?;
+            return serde_json::from_str(&decrypted).with_context(|| {
+                format!(
+                    "failed to deserialize decrypted hex response (prefix={})",
+                    snippet(&decrypted)
+                )
+            });
+        }
+
+        return Err(anyhow::anyhow!(
+            "failed to deserialize utf-8 response (prefix={})",
+            snippet(trimmed)
+        ));
+    }
+
+    if bytes.len() >= 16 && bytes.len() % 16 == 0 {
+        if let Ok(decrypted) = netease_res_decrypt_bytes(bytes) {
+            if let Ok(text) = std::str::from_utf8(&decrypted) {
+                if let Ok(value) = serde_json::from_str(text) {
+                    return Ok(value);
+                }
+                return Err(anyhow::anyhow!(
+                    "failed to deserialize decrypted binary response (prefix={})",
+                    snippet(text)
+                ));
+            }
+        }
+    }
+
+    Err(anyhow::anyhow!(
+        "failed to decode response as json (bytes_prefix={})",
+        hex_prefix(bytes)
+    ))
+}
+
+fn looks_like_hex_ciphertext(text: &str) -> bool {
+    if text.len() < 32 || text.len() % 2 != 0 {
+        return false;
+    }
+    text.as_bytes()
+        .iter()
+        .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F'))
+}
+
+fn snippet(text: &str) -> String {
+    const MAX: usize = 160;
+    let trimmed = text.trim();
+    if trimmed.len() <= MAX {
+        trimmed.to_string()
+    } else {
+        format!("{}…", &trimmed[..MAX])
+    }
+}
+
+fn hex_prefix(bytes: &[u8]) -> String {
+    const MAX: usize = 48;
+    let count = bytes.len().min(MAX);
+    hex::encode(&bytes[..count])
 }
 
 /// 将歌曲 id 列表编码为接口要求的字符串数组文本。

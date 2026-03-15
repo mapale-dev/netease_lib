@@ -10,3 +10,8 @@ pub mod search;
 pub mod song;
 
 pub use client::NeteaseApiClient;
+pub use banner::BannerRequest;
+pub use lyric::LyricRequest;
+pub use search::{MlogQuery, SearchQuery};
+pub use song::ChorusRequest;
+pub use song::enhance::player::PlayerUrlRequest;

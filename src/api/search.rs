@@ -12,17 +12,17 @@ use crate::{
 
 /// 通用搜索关键字分页参数。
 #[derive(Debug, Clone)]
-pub struct SearchQuery<'a> {
-    pub keyword: &'a str,
+pub struct SearchQuery {
+    pub keyword: String,
     pub limit: u32,
     pub offset: u32,
 }
 
-impl<'a> SearchQuery<'a> {
+impl SearchQuery {
     /// 使用关键字创建默认搜索参数。
-    pub fn new(keyword: &'a str) -> Self {
+    pub fn new(keyword: impl Into<String>) -> Self {
         Self {
-            keyword,
+            keyword: keyword.into(),
             limit: 10,
             offset: 0,
         }
@@ -41,8 +41,41 @@ impl<'a> SearchQuery<'a> {
     }
 }
 
+/// Mlog 搜索参数。
+#[derive(Debug, Clone)]
+pub struct MlogQuery {
+    pub keyword: String,
+    pub limit: u32,
+    pub offset: u32,
+    pub scene: String,
+    pub channel: String,
+    pub os: String,
+    pub tag: String,
+}
+
+impl MlogQuery {
+    /// 使用关键字创建默认 Mlog 搜索参数。
+    pub fn new(keyword: impl Into<String>) -> Self {
+        Self {
+            keyword: keyword.into(),
+            limit: 20,
+            offset: 0,
+            scene: "normal".to_string(),
+            channel: "suggest".to_string(),
+            os: "pc".to_string(),
+            tag: "MV".to_string(),
+        }
+    }
+
+    /// 设置标签。
+    pub fn with_tag(mut self, tag: impl Into<String>) -> Self {
+        self.tag = tag.into();
+        self
+    }
+}
+
 /// 搜索专辑。
-pub async fn album(client: &NeteaseApiClient, query: &SearchQuery<'_>) -> Result<AlbumSearchResponse> {
+pub async fn album(client: &NeteaseApiClient, query: &SearchQuery) -> Result<AlbumSearchResponse> {
     client
         .post_eapi(
             "/api/v1/search/album/get",
@@ -57,7 +90,7 @@ pub async fn album(client: &NeteaseApiClient, query: &SearchQuery<'_>) -> Result
 }
 
 /// 搜索歌手。
-pub async fn artist(client: &NeteaseApiClient, query: &SearchQuery<'_>) -> Result<ArtistSearchResponse> {
+pub async fn artist(client: &NeteaseApiClient, query: &SearchQuery) -> Result<ArtistSearchResponse> {
     client
         .post_eapi(
             "/api/v1/search/artist/get",
@@ -72,7 +105,7 @@ pub async fn artist(client: &NeteaseApiClient, query: &SearchQuery<'_>) -> Resul
 }
 
 /// 搜索歌单。
-pub async fn playlist(client: &NeteaseApiClient, query: &SearchQuery<'_>) -> Result<PlaylistSearchResponse> {
+pub async fn playlist(client: &NeteaseApiClient, query: &SearchQuery) -> Result<PlaylistSearchResponse> {
     client
         .post_eapi(
             "/api/v1/search/playlist/get",
@@ -88,7 +121,7 @@ pub async fn playlist(client: &NeteaseApiClient, query: &SearchQuery<'_>) -> Res
 }
 
 /// 搜索用户。
-pub async fn user(client: &NeteaseApiClient, query: &SearchQuery<'_>) -> Result<UserSearchResponse> {
+pub async fn user(client: &NeteaseApiClient, query: &SearchQuery) -> Result<UserSearchResponse> {
     client
         .post_eapi(
             "/api/v1/search/user/get",
@@ -105,7 +138,7 @@ pub async fn user(client: &NeteaseApiClient, query: &SearchQuery<'_>) -> Result<
 /// 搜索单曲列表页。
 pub async fn song_list_page(
     client: &NeteaseApiClient,
-    query: &SearchQuery<'_>,
+    query: &SearchQuery,
 ) -> Result<SongListSearchResponse> {
     client
         .post_eapi(
@@ -126,7 +159,7 @@ pub async fn song_list_page(
 /// 搜索歌词资源。
 pub async fn resource_lyric(
     client: &NeteaseApiClient,
-    query: &SearchQuery<'_>,
+    query: &SearchQuery,
 ) -> Result<LyricResourceSearchResponse> {
     client
         .post_eapi(
@@ -142,7 +175,7 @@ pub async fn resource_lyric(
 }
 
 /// 搜索声音节目。
-pub async fn voice(client: &NeteaseApiClient, query: &SearchQuery<'_>) -> Result<VoiceSearchResponse> {
+pub async fn voice(client: &NeteaseApiClient, query: &SearchQuery) -> Result<VoiceSearchResponse> {
     client
         .post_eapi(
             "/api/search/voice/get",
@@ -159,7 +192,7 @@ pub async fn voice(client: &NeteaseApiClient, query: &SearchQuery<'_>) -> Result
 /// 搜索播客列表。
 pub async fn voicelist(
     client: &NeteaseApiClient,
-    query: &SearchQuery<'_>,
+    query: &SearchQuery,
 ) -> Result<VoiceListSearchResponse> {
     client
         .post_eapi(
@@ -177,20 +210,44 @@ pub async fn voicelist(
 /// 搜索 Mlog / MV 资源。
 pub async fn mlog(
     client: &NeteaseApiClient,
-    query: &SearchQuery<'_>,
+    query: &SearchQuery,
     tag: Option<&str>,
 ) -> Result<MlogSearchResponse> {
+    let request = MlogQuery::new(query.keyword.clone())
+        .with_tag(tag.unwrap_or("MV"))
+        .with_limit(query.limit)
+        .with_offset(query.offset);
+
+    fetch_mlog(client, &request).await
+}
+
+impl MlogQuery {
+    /// 设置分页大小。
+    pub fn with_limit(mut self, limit: u32) -> Self {
+        self.limit = limit;
+        self
+    }
+
+    /// 设置分页偏移。
+    pub fn with_offset(mut self, offset: u32) -> Self {
+        self.offset = offset;
+        self
+    }
+}
+
+/// 按结构化参数搜索 Mlog / MV 资源。
+pub async fn fetch_mlog(client: &NeteaseApiClient, query: &MlogQuery) -> Result<MlogSearchResponse> {
     client
         .post_eapi(
             "/api/search/mlog/get",
             json!({
                 "keyword": query.keyword,
-                "scene": "normal",
+                "scene": query.scene,
                 "limit": query.limit.to_string(),
                 "offset": query.offset.to_string(),
-                "channel": "suggest",
-                "os": "pc",
-                "tag": tag.unwrap_or("MV"),
+                "channel": query.channel,
+                "os": query.os,
+                "tag": query.tag,
             }),
         )
         .await
